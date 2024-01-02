@@ -5,7 +5,7 @@ read_groups: extract halo/subhalo informations of one snapshot from all subfind 
 
 read_hbt: read subhalo information of one snapshot from all SubSnap files. 
 
-Wirtten by Qingyang Li, Yizhou Gu (2022/11) 
+Wirtten by Qingyang Li, Yizhou Gu (2022/11); revised in 2024/1 (add reading for M2G data file)
 ''' 
 
 import glob
@@ -13,6 +13,7 @@ import multiprocessing as mp
 import numpy as np
 import time
 import os
+import h5py
 
 # __ALL__ = ['collect4csstmock', 'read_groups', 'read_hbt', 'nexthaloid']
 
@@ -215,7 +216,7 @@ class subfind_catalog:
 
     self.group_len = np.empty(ngroups, dtype=np.uint32)
     self.group_offset = np.empty(ngroups, dtype=np.uint32)
-    self.group_nr = np.empty(ngroups, dtype=np.uint64)
+    self.group_nr = np.empty(ngroups, dtype=np.uint64) #host halo id
     self.group_cm = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
     self.group_vel = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
     self.group_pos = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
@@ -233,8 +234,8 @@ class subfind_catalog:
     if nsubs > 0: 
       self.sub_len = np.empty(nsubs, dtype=np.uint32)
       self.sub_offset = np.empty(nsubs, dtype=np.uint32)
-      self.sub_grnr = np.empty(nsubs, dtype=np.uint64)
-      self.sub_nr = np.empty(nsubs, dtype=np.uint64)
+      self.sub_grnr = np.empty(nsubs, dtype=np.uint64) #host halo id
+      self.sub_nr = np.empty(nsubs, dtype=np.uint64) #subhalo id
       self.sub_pos = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
       self.sub_vel = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
       self.sub_cm = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
@@ -304,6 +305,72 @@ class subfind_catalog:
         print("Warning: finished reading before EOF for file",filenum)
       f.close()  
 
+
+class subfind_catalog_hdf5:
+  '''
+  code for reading Subfind's subhalo_tab files
+  '''
+  def __init__(self, curfile): 
+ 
+    #self.filebase = basedir + "/groups_" + str(snapnum).zfill(3) + "/subhalo_tab_" + str(snapnum).zfill(3) + "."
+ 
+    #print()
+    #print("reading subfind catalog for snapshot",snapnum,"of",basedir)
+ 
+    have_veldisp = False
+ 
+    #curfile = self.filebase + str(filenum)
+    
+    if (not os.path.exists(curfile)):
+      print("file not found:", curfile)
+      sys.exit()
+    
+    f = h5py.File(curfile,'r')
+
+    self.ngroups= len(f['Group/GroupPos'])  # Number of    groups within this file chunk.
+    self.nsubs  = len(f['Subhalo/SubhaloPos']) # Number of subgroups within this file chunk.
+
+    #--------------------------------------------------------------------
+    self.group_len = f['Group/GroupLen'][:]
+    # group_len - Integer counter of the total number of particles/cells of all types in this group.
+    self.group_offsettype = f['Group/GroupOffsetType'][:]
+    self.group_mass = f['Group/GroupMass'][:]
+
+    self.group_vel = f['Group/GroupVel'][:]
+    self.group_pos = f['Group/GroupPos'][:]
+    # group_vel (N,3) - Velocity of the group, The peculiar velocity is obtained by multiplying this value by 1/a. 
+    # group_pos (N,3) - Spatial position within the periodic box (of the particle with the minimum gravitational potential energy)
+    self.group_m_mean200 = f['Group/Group_M_Mean200'][:]
+    self.group_m_crit200 = f['Group/Group_M_Crit200'][:]
+    self.group_m_tophat200 = f['Group/Group_M_TopHat200'][:]
+
+    self.group_r_mean200 = f['Group/Group_R_Mean200'][:]
+    self.group_r_crit200 = f['Group/Group_R_Crit200'][:]
+    self.group_r_tophat200 = f['Group/Group_R_TopHat200'][:]
+
+    self.group_nsubs = f['Group/GroupNsubs'][:]
+    self.group_firstsub = f['Group/GroupFirstSub'][:]
+
+    if self.nsubs > 0:
+      self.sub_len = f['Subhalo/SubhaloLen'][:]
+      self.sub_pos = f['Subhalo/SubhaloPos'][:]
+      self.sub_vel = f['Subhalo/SubhaloVel'][:]
+      self.sub_cm = f['Subhalo/SubhaloCM'][:]
+      # group_cm  (N,3) - Center of mass of the subgroup
+      # group_vel (N,3) - Velocity of the subgroup 
+      # group_pos (N,3) - Spatial position within the periodic box 
+      self.sub_spin = f['Subhalo/SubhaloSpin'][:]
+      self.sub_veldisp = f['Subhalo/SubhaloVelDisp'][:]
+      # sub_veldisp N   - One-dimensional velocity dispersion of all the member particles/cells (the 3D dispersion divided by sqrt(3) ).
+      self.sub_vmax = f['Subhalo/SubhaloVmax'][:]
+      self.sub_vmaxrad = f['Subhalo/SubhaloVmaxRad'][:]
+      self.sub_halfmassrad = f['Subhalo/SubhaloHalfmassRad'][:]
+      self.sub_parent = f['Subhalo/SubhaloParentRank'][:]
+      # self.sub_idbm = f['Subhalo/SubhaloIDMostbound'][:]
+      self.sub_mass = f['Subhalo/SubhaloMass'][:]
+      #self.sub_shape = np.fromfile(f, dtype=np.dtype((np.float32,6)), count=nsubs)
+      f.close() 
+
     
 def read_groups_subhalos(filename, blocks):
     dmpm = 0.03722953 #dark matter particle mass
@@ -312,9 +379,14 @@ def read_groups_subhalos(filename, blocks):
     for block in blocks: 
         DATAALL[block] = []
         DATATYPE[block] = []
-    grp_= subfind_catalog(filename) 
-    nh_ = np.shape(grp_.group_nr)[0] #number of groups
-    ns_ = np.shape(grp_.sub_nr)[0] #number of subhalos 
+    if '.hdf5' in filename:
+        grp_= subfind_catalog_hdf5(filename) 
+        nh_ = grp_.ngroups
+        ns_ = grp_.nsubs
+    else:
+        grp_= subfind_catalog(filename) 
+        nh_ = np.shape(grp_.group_nr)[0] #number of groups
+        ns_ = np.shape(grp_.sub_nr)[0] #number of subhalos 
     #group information
     for block in blocks:
         if block == 'group_mass':
