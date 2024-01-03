@@ -5,7 +5,7 @@ read_groups: extract halo/subhalo informations of one snapshot from all subfind 
 
 read_hbt: read subhalo information of one snapshot from all SubSnap files. 
 
-Wirtten by Qingyang Li, Yizhou Gu (2022/11); revised in 2024/1 (add reading for M2G data file)
+Wirtten by Qingyang Li, Yizhou Gu (2022/11); revised in 2024/1
 ''' 
 
 import glob
@@ -14,6 +14,8 @@ import numpy as np
 import time
 import os
 import h5py
+import sys
+import re
 
 # __ALL__ = ['collect4csstmock', 'read_groups', 'read_hbt', 'nexthaloid']
 
@@ -216,7 +218,7 @@ class subfind_catalog:
 
     self.group_len = np.empty(ngroups, dtype=np.uint32)
     self.group_offset = np.empty(ngroups, dtype=np.uint32)
-    self.group_nr = np.empty(ngroups, dtype=np.uint64) #host halo id
+    self.group_nr = np.empty(ngroups, dtype=np.uint64)
     self.group_cm = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
     self.group_vel = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
     self.group_pos = np.empty(ngroups, dtype=np.dtype((np.float32,3)))
@@ -234,8 +236,8 @@ class subfind_catalog:
     if nsubs > 0: 
       self.sub_len = np.empty(nsubs, dtype=np.uint32)
       self.sub_offset = np.empty(nsubs, dtype=np.uint32)
-      self.sub_grnr = np.empty(nsubs, dtype=np.uint64) #host halo id
-      self.sub_nr = np.empty(nsubs, dtype=np.uint64) #subhalo id
+      self.sub_grnr = np.empty(nsubs, dtype=np.uint64)
+      self.sub_nr = np.empty(nsubs, dtype=np.uint64)
       self.sub_pos = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
       self.sub_vel = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
       self.sub_cm = np.empty(nsubs, dtype=np.dtype((np.float32,3)))
@@ -354,6 +356,7 @@ class subfind_catalog_hdf5:
     if self.nsubs > 0:
       self.sub_len = f['Subhalo/SubhaloLen'][:]
       self.sub_pos = f['Subhalo/SubhaloPos'][:]
+      self.sub_grnr = f['Subhalo/SubhaloGroupNr'][:]
       self.sub_vel = f['Subhalo/SubhaloVel'][:]
       self.sub_cm = f['Subhalo/SubhaloCM'][:]
       # group_cm  (N,3) - Center of mass of the subgroup
@@ -455,10 +458,14 @@ def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/gr
     DATAALL = {}
     for block in blocks: DATAALL[block] = []
     filedir   = basedir_groups + '/groups_'+  str(snapnum).zfill(3) + \
-                '/subhalo_tab_'+ str(snapnum).zfill(3)  + '.'
+                '/*subhalo_tab_'+ str(snapnum).zfill(3)  + '.'
     filenames = glob.glob(filedir + '*') 
     division  = len(filenames) # the divided  number
-    filenames = [filedir + '%s'%d for d in range(division) ] 
+    # filenames = [filedir + '%s'%d for d in range(division) ] 
+    
+    #filenames sorted with numbers
+    natsort = lambda s: [int(t) if t.isdigit() else t.lower() for t in re.split('(\d+)', s)]
+    filenames = sorted(filenames, key = natsort)
 
     size        = mp.cpu_count() 
     
@@ -467,6 +474,11 @@ def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/gr
         exit()
     else:
         print('Reading %s groups divisions of %sth snapshot with %s threads'%(division, snapnum, size)) 
+        
+    if ('.hdf5' in filenames[0]) and ('group_nr' in blocks):
+        blocks_temp = blocks * 1
+        blocks.remove('group_nr')
+        
 
     #split task & start parallel
     task_splits = np.array_split(filenames, size)
@@ -489,6 +501,10 @@ def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/gr
             DATAALL[block] = np.vstack(DATAALL[block])
         else: 
             DATAALL[block] = np.hstack(DATAALL[block])
+            
+    if ('.hdf5' in filenames[0]) and ('group_nr' in blocks_temp):
+        DATAALL['group_nr'] = np.arange(396976641, dtype = np.int64) #for M2G
+        DATATYPE['group_nr'] = 'np.int64'
     return DATAALL, DATATYPE
 
 
