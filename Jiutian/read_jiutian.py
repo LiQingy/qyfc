@@ -329,8 +329,8 @@ class subfind_catalog_hdf5:
     
     f = h5py.File(curfile,'r')
 
-    self.ngroups= len(f['Group/GroupPos'])  # Number of    groups within this file chunk.
-    self.nsubs  = len(f['Subhalo/SubhaloPos']) # Number of subgroups within this file chunk.
+    self.ngroups= len(f['Group/GroupPos'][:])  # Number of    groups within this file chunk.
+    self.nsubs  = len(f['Subhalo/SubhaloPos'][:]) # Number of subgroups within this file chunk.
 
     #--------------------------------------------------------------------
     self.group_len = f['Group/GroupLen'][:]
@@ -376,7 +376,13 @@ class subfind_catalog_hdf5:
 
     
 def read_groups_subhalos(filename, blocks):
-    dmpm = 0.03722953 #dark matter particle mass
+    if 'M1000' in filename:
+        dmpm = 0.03722953 #dark matter particle mass
+    elif 'M300' in filename:
+        dmpm = 0.001005
+    elif 'M2G' in filename:
+        dmpm = 0.2978
+
     DATAALL = {}
     DATATYPE = {}
     for block in blocks: 
@@ -427,6 +433,19 @@ def read_groups_subhalos_split(filenames, blocks):
             DATA[block] = np.hstack(DATA[block])
     return Nh, Ns, DATA, DATATYPE
 
+def file_block_check(fullfilename):
+    '''
+    some sub files do not have 'Group', especially for M300
+    '''
+
+    filenms = []
+    for filename in fullfilename:
+        f = h5py.File(filename, 'r')
+        if 'Group' in f.keys():
+            filenms.append(filename)
+        f.close()
+    return np.array(filenms)
+
 def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/groups/'): 
     '''
     extract halo/subhalo informations from all subfind group files with multiprocessing 
@@ -460,6 +479,12 @@ def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/gr
     filedir   = basedir_groups + '/groups_'+  str(snapnum).zfill(3) + \
                 '/*subhalo_tab_'+ str(snapnum).zfill(3)  + '.'
     filenames = glob.glob(filedir + '*') 
+
+        #file check for M300
+    if 'M300' in basedir_groups:
+        filenames = file_block_check(filenames)
+        print(filenames)
+
     division  = len(filenames) # the divided  number
     # filenames = [filedir + '%s'%d for d in range(division) ] 
     
@@ -502,7 +527,7 @@ def read_groups(snapnum, blocks, basedir_groups = '/home/cossim/Jiutian/M1000/gr
         else: 
             DATAALL[block] = np.hstack(DATAALL[block])
             
-    if ('.hdf5' in filenames[0]) and ('group_nr' in blocks_temp):
+    if ('.hdf5' in filenames[0]) and ('group_nr' in blocks) and ('M2G' in basedir_groups):
         DATAALL['group_nr'] = np.arange(396976641, dtype = np.int64) #for M2G
         DATATYPE['group_nr'] = 'np.int64'
     return DATAALL, DATATYPE
