@@ -1,0 +1,34 @@
+#plot under observation coordinates
+import plotly.graph_objects as go
+import numpy as np
+
+fig = go.Figure(data=[go.Scatter3d(x=data['ra'], 
+                                   y=data['dec'], 
+                                   z=data['z'],
+                                   mode='markers',
+                                  marker = dict(
+                                      size = 0.4
+                                  ))])
+fig.update_layout(
+    autosize=False,
+    width=900,
+    height=900,
+    
+    scene = dict(
+                xaxis_title="ra[Mpc/h]", 
+                yaxis_title="dec[Mpc/h]",
+                zaxis_title="z[Mpc/h]",
+                # zaxis_autorange="reversed",
+                # yaxis_autorange="reversed",
+                ),
+    
+    scene_camera = dict(
+                        # up=dict(x=1, y=1, z=0),
+                        # center=dict(x=0, y=0, z=0),
+                        eye=dict(x=0., y=0., z=2)
+                        ),
+    scene_dragmode='orbit',
+    title = 'DM distribution in (x, y, z) coordinates'
+)
+
+# fig.show()
