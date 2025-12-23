@@ -7,6 +7,58 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+import numpy as np 
+
+
+def generate_1d_dist(data, require_num, hlim, nbin = 100):
+    '''generate points following a 1d distribution
+    '''
+    counts, bin_edges = np.histogram(data, bins=nbin, range = (hlim[0], hlim[1]), density=True)
+
+    cdf = np.cumsum(counts) * np.diff(bin_edges)[0] #cumulative possibility
+    cdf = cdf / cdf[-1]  
+
+    random_uniform = np.random.rand(require_num)  
+    random_values = np.interp(random_uniform, cdf, bin_edges[1:]) 
+    return random_values
+
+
+def find_index(b, a):
+	'''find the b in a, return index of a
+	'''
+	dict_a = {v: i for i, v in enumerate(a)}
+	indx_a = np.int64([dict_a[v] for v in b])
+	return indx_a
+
+
+def get_d(z, dist_type = 'luminosity'):
+    '''get comoving distance based on cosmo
+    '''
+    if dist_type == 'luminosity':
+        return cosmo.luminosity_distance(z).value #Mpc
+    elif dist_type == 'comoving':
+        return cosmo.comoving_distance(z).value #Mpc
+
+def get_zd_interpl(dist, dist_type = 'luminosity'):
+    from scipy.interpolate import interp1d
+    zlin = np.linspace(1e-6, 6, 6000)
+    distlin = get_d(zlin, dist_type)
+    f = interp1d(distlin, zlin, kind='quadratic')
+    return f(dist)
+
+
+def save_to_hdf5(filename, dataset_name, data):
+    """save data to HDF5"""
+    with h5py.File(filename, "w") as f:
+        grp = f.create_group(dataset_name)
+        for name in data.dtype.names:
+            grp.create_dataset(name, data=data[name], compression="gzip")
+
+def interpolate_func()
+    from scipy.interpolate import interp1d
+    interp = interp1d(z_cos.value, z_vals, kind='linear', bounds_error=False, fill_value=np.nan)
+    redshift = interp(r_comoving)
+
 
 def cal_galarea(ra,dec):
     '''
