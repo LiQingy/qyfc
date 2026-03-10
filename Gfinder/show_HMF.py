@@ -53,8 +53,8 @@ def cal_galarea(ra,dec):
 def cal_Vmax(zbin,  cosmos_para, mlim, galarea):
     sel_redz = np.where((dgroup[:,4] > zbin[0]) & (dgroup[:,4] < zbin[1]))[0]
     BGGid = np.int64(dBCGinfo[sel_redz,1])
-    zBGG = digal[BGGid-1,3]
-    mBGG = digal[BGGid-1,4]
+    zBGG = digal[BGGid-1,4]
+    mBGG = digal[BGGid-1,5]
     
     Vmax = get_Vmax(cosmo_para, zBGG, mBGG, zbin, mlim, galarea)
     HaloM = dgroup[sel_redz, 5]
