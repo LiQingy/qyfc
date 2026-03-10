@@ -60,8 +60,13 @@ def cal_Vmax(zbin,  cosmos_para, mlim, galarea):
     HaloM = dgroup[sel_redz, 5]
     return HaloM,Vmax
 
-
 if __name__ == '__main__':
+  dgroup = np.loadtxt('../../../output_magi/cosmos_group')
+  dBCGinfo = np.loadtxt('../../../output_magi/cosmos_BCGinfo')
+  digal = np.loadtxt('../../../output_magi/cosmos_igal')
+  d2 = np.loadtxt('../../../output_magi/icosmos_2')
+  d1 = np.loadtxt('../../../output_magi/icosmos_1')
+
   xmin = 11
   xmax = 15.5
   nbin = 15
